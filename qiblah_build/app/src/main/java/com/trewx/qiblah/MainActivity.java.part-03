@@ -1,0 +1,120 @@
+onAccuracyChanged(Sensor sensor, int accuracy) {
+        if (sensor != null && sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
+            magneticAccuracy = accuracy;
+            updateCalibrationStatus();
+        }
+    }
+
+    private void updateDirectionVectors(float[] r) {
+        Direction top = directionForDeviceVector(r, 0f, 1f, 0f);
+        Direction camera = directionForDeviceVector(r, 0f, 0f, -1f);
+        topHorizontalStrength = top.horizontalStrength;
+        cameraHorizontalStrength = camera.horizontalStrength;
+        rawTopAzimuth = normalize(top.azimuth + declination);
+        rawCameraAzimuth = normalize(camera.azimuth + declination);
+    }
+
+    private Direction directionForDeviceVector(float[] r, float x, float y, float z) {
+        float east = r[0] * x + r[1] * y + r[2] * z;
+        float north = r[3] * x + r[4] * y + r[5] * z;
+        float horizontal = (float) Math.sqrt(east * east + north * north);
+        float az = normalize((float) Math.toDegrees(Math.atan2(east, north)));
+        return new Direction(az, horizontal);
+    }
+
+    private void updateViews() {
+        if (compassView != null) compassView.setData(rawTopAzimuth, qiblahBearing, hasQiblah, topHorizontalStrength, locked && selectedTab == 0);
+        if (cameraOverlay != null) cameraOverlay.setData(rawCameraAzimuth, qiblahBearing, hasQiblah, cameraHorizontalStrength, locked && selectedTab == 2);
+    }
+
+    private void checkAlignmentForCurrentMode() {
+        if (!hasQiblah || selectedTab == 1) return;
+        float azimuth = selectedTab == 2 ? rawCameraAzimuth : rawTopAzimuth;
+        float strength = selectedTab == 2 ? cameraHorizontalStrength : topHorizontalStrength;
+        float minStrength = selectedTab == 2 ? .28f : .35f;
+        if (strength < minStrength) {
+            alignmentStart = 0L;
+            locked = false;
+            return;
+        }
+        float diff = Math.abs(angleDiff(qiblahBearing, azimuth));
+        long now = SystemClock.elapsedRealtime();
+        if (diff <= 2.0f) {
+            if (alignmentStart == 0L) alignmentStart = now;
+            if (!locked && now - alignmentStart >= 420L) {
+                locked = true;
+                if (now - lastFeedback > 2500L) {
+                    lastFeedback = now;
+                    alignmentFeedback();
+                }
+            }
+        } else if (diff >= 4.0f) {
+            alignmentStart = 0L;
+            locked = false;
+        }
+        updateViews();
+    }
+
+    private void alignmentFeedback() {
+        try {
+            if (toneGenerator != null) toneGenerator.startTone(ToneGenerator.TONE_PROP_ACK, 180);
+        } catch (Throwable ignored) { }
+        try {
+            if (Build.VERSION.SDK_INT >= 31) {
+                VibratorManager vm = (VibratorManager) getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
+                if (vm != null) vm.getDefaultVibrator().vibrate(VibrationEffect.createOneShot(110, VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                Vibrator v = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+                if (v != null) {
+                    if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createOneShot(110, VibrationEffect.DEFAULT_AMPLITUDE));
+                    else v.vibrate(110);
+                }
+            }
+        } catch (Throwable ignored) { }
+    }
+
+    private void resetCompassFilter() {
+        haveRotation = false;
+        rawTopAzimuth = 0f;
+        rawCameraAzimuth = 0f;
+        alignmentStart = 0L;
+        locked = false;
+        if (compassView != null) compassView.resetAnimation();
+        if (cameraOverlay != null) cameraOverlay.resetAnimation();
+        try { sensorManager.unregisterListener(this); } catch (Throwable ignored) { }
+        if (calibrationSubtext != null) calibrationSubtext.setText("Reset complete. Now perform the figure-8 movement slowly three to five times.");
+        mainHandler.postDelayed(this::registerSensors, 300L);
+        if (figureEightView != null) figureEightView.restart();
+    }
+
+    private void updateCalibrationStatus() {
+        if (calibrationStatus == null) return;
+        String label;
+        int color;
+        switch (magneticAccuracy) {
+            case SensorManager.SENSOR_STATUS_ACCURACY_HIGH: label = "HIGH — ready"; color = GREEN; break;
+            case SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM: label = "MEDIUM — usable"; color = ORANGE; break;
+            case SensorManager.SENSOR_STATUS_ACCURACY_LOW: label = "LOW — calibrate now"; color = Color.rgb(220, 92, 56); break;
+            default: label = "UNRELIABLE — recalibration needed"; color = Color.rgb(190, 52, 52); break;
+        }
+        calibrationStatus.setText("Sensor status: " + label);
+        calibrationStatus.setTextColor(color);
+    }
+
+    private void requestLocationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_LOCATION);
+        } else startLocationUpdatesIfPermitted();
+    }
+
+    private void startLocationUpdatesIfPermitted() {
+        if (locationManager == null || locationUpdatesStarted) return;
+        if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
+        try {
+            Location best = null;
+            for (String provider : new String[]{LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER}) {
+                try {
+                    Location l = locationManager.getLastKnownLocation(provider);
+                    if (l != null &
