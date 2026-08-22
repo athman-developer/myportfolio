@@ -1,1 +1,1 @@
-TREWX Qiblah v3 pull request build trigger — final Java compatibility retry.
+TREWX Qiblah v3 pull request build trigger — publish compiled APK artifact.
