@@ -1,6 +1,12 @@
 = new FrameLayout(this);
         root.setBackgroundColor(CREAM);
         setContentView(root);
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            v.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
+                    insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+            return insets;
+        });
+        root.requestApplyInsets();
 
         LinearLayout app = new LinearLayout(this);
         app.setOrientation(LinearLayout.VERTICAL);
@@ -39,14 +45,17 @@
         compassPage = buildCompassPage();
         calibrationPage = buildCalibrationPage();
         cameraPage = buildCameraPage();
+        prayerDashboard = new PrayerDashboardView(this);
+        prayerPage = prayerDashboard;
         content.addView(compassPage, match());
         content.addView(calibrationPage, match());
         content.addView(cameraPage, match());
+        content.addView(prayerPage, match());
 
         LinearLayout nav = new LinearLayout(this);
         nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER);
-        nav.setPadding(dp(12), dp(8), dp(12), dp(10));
+        nav.setPadding(dp(8), dp(8), dp(8), dp(10));
         GradientDrawable navBg = new GradientDrawable();
         navBg.setColor(Color.WHITE);
         navBg.setStroke(dp(1), Color.rgb(232, 230, 223));
@@ -56,12 +65,15 @@
         tabCompass = navButton("COMPASS");
         tabCalibrate = navButton("CALIBRATE");
         tabCamera = navButton("CAMERA");
+        tabPrayer = navButton("PRAYERS");
         nav.addView(tabCompass, new LinearLayout.LayoutParams(0, dp(52), 1f));
         nav.addView(tabCalibrate, new LinearLayout.LayoutParams(0, dp(52), 1f));
         nav.addView(tabCamera, new LinearLayout.LayoutParams(0, dp(52), 1f));
+        nav.addView(tabPrayer, new LinearLayout.LayoutParams(0, dp(52), 1f));
         tabCompass.setOnClickListener(v -> selectTab(0));
         tabCalibrate.setOnClickListener(v -> selectTab(1));
         tabCamera.setOnClickListener(v -> selectTab(2));
+        tabPrayer.setOnClickListener(v -> selectTab(3));
         selectTab(0);
     }
 
