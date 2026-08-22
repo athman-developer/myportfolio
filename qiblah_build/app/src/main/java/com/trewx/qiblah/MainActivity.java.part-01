@@ -22,7 +22,7 @@
         header.addView(mark, new LinearLayout.LayoutParams(dp(20), dp(20)));
 
         TextView title = new TextView(this);
-        title.setText("TREWX  QIBLAH");
+        title.setText("QIBLA COMPASS");
         title.setTextColor(INK);
         title.setTextSize(20);
         title.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
@@ -115,7 +115,7 @@
         reset.setOnClickListener(v -> resetCompassFilter());
         box.addView(reset, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)));
 
-        TextView note = text("Resetting restarts TREWX's orientation filter. The figure-8 movement is what recalibrates the phone's physical magnetometer.", 13, MUTED, false);
+        TextView note = text("Resetting restarts Qibla Compass's orientation filter. The figure-8 movement is what recalibrates the phone's physical magnetometer.", 13, MUTED, false);
         note.setPadding(dp(4), dp(12), dp(4), 0);
         box.addView(note);
         return scroll;
