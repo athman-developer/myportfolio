@@ -1,0 +1,84 @@
+vate CameraDevice device;
+        private CameraCaptureSession session;
+        private CaptureRequest.Builder requestBuilder;
+        private Surface previewSurface;
+        private HandlerThread cameraThread;
+        private Handler cameraHandler;
+        private String cameraId;
+        private Size previewSize;
+        private int sensorOrientation = 90;
+        private boolean opening = false;
+        private boolean wantOpen = false;
+
+        CameraController(Activity a, TextureView t) {
+            activity=a; texture=t; manager=(CameraManager)a.getSystemService(Context.CAMERA_SERVICE);
+            texture.setSurfaceTextureListener(new TextureView.SurfaceTextureListener(){
+                @Override public void onSurfaceTextureAvailable(SurfaceTexture st,int w,int h){ if(wantOpen) openCamera(); }
+                @Override public void onSurfaceTextureSizeChanged(SurfaceTexture st,int w,int h){ configureTransform(w,h); }
+                @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture st){ closeCamera(); return true; }
+                @Override public void onSurfaceTextureUpdated(SurfaceTexture st){ }
+            });
+        }
+
+        void openWhenReady(){ wantOpen=true; startThread(); if(texture.isAvailable())openCamera(); }
+
+        private void startThread(){ if(cameraThread!=null)return; cameraThread=new HandlerThread("TREWX-Camera");cameraThread.start();cameraHandler=new Handler(cameraThread.getLooper()); }
+
+        @SuppressWarnings("MissingPermission")
+        private synchronized void openCamera(){
+            if(!wantOpen||opening||device!=null||!texture.isAvailable())return;
+            if(Build.VERSION.SDK_INT>=23&&activity.checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)return;
+            startThread();
+            try{
+                chooseCamera(); if(cameraId==null)return; opening=true;
+                manager.openCamera(cameraId,new CameraDevice.StateCallback(){
+                    @Override public void onOpened(CameraDevice c){ synchronized(CameraController.this){opening=false;device=c;} createPreview(); }
+                    @Override public void onDisconnected(CameraDevice c){ synchronized(CameraController.this){opening=false;} try{c.close();}catch(Throwable ignored){} device=null; }
+                    @Override public void onError(CameraDevice c,int error){ synchronized(CameraController.this){opening=false;} try{c.close();}catch(Throwable ignored){} device=null; }
+                },cameraHandler);
+            }catch(Throwable e){opening=false;}
+        }
+
+        private void chooseCamera() throws CameraAccessException {
+            for(String id:manager.getCameraIdList()){
+                CameraCharacteristics ch=manager.getCameraCharacteristics(id);
+                Integer facing=ch.get(CameraCharacteristics.LENS_FACING);
+                if(facing!=null&&facing==CameraCharacteristics.LENS_FACING_BACK){
+                    StreamConfigurationMap map=ch.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP); if(map==null)continue;
+                    Size[] sizes=map.getOutputSizes(SurfaceTexture.class); if(sizes==null||sizes.length==0)continue;
+                    cameraId=id; Integer so=ch.get(CameraCharacteristics.SENSOR_ORIENTATION);if(so!=null)sensorOrientation=so;
+                    previewSize=choosePreviewSize(sizes); return;
+                }
+            }
+        }
+
+        private Size choosePreviewSize(Size[] sizes){
+            List<Size> list=new ArrayList<>(Arrays.asList(sizes));
+            Collections.sort(list, Comparator.comparingLong(s->(long)s.getWidth()*s.getHeight()));
+            Size best=list.get(0);
+            for(Size s:list){long pixels=(long)s.getWidth()*s.getHeight();if(s.getWidth()>=1280&&s.getHeight()>=720){best=s;break;}if(pixels<=1920L*1080L)best=s;}
+            return best;
+        }
+
+        private void createPreview(){
+            CameraDevice d=device;if(d==null||previewSize==null||!texture.isAvailable())return;
+            try{
+                SurfaceTexture st=texture.getSurfaceTexture();if(st==null)return;st.setDefaultBufferSize(previewSize.getWidth(),previewSize.getHeight());
+                previewSurface=new Surface(st);
+                Surface surface=previewSurface;
+                requestBuilder=d.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);requestBuilder.addTarget(surface);
+                requestBuilder.set(CaptureRequest.CONTROL_AF_MODE,CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                requestBuilder.set(CaptureRequest.CONTROL_AE_MODE,CaptureRequest.CONTROL_AE_MODE_ON);
+                d.createCaptureSession(Collections.singletonList(surface),new CameraCaptureSession.StateCallback(){
+                    @Override public void onConfigured(CameraCaptureSession s){ if(device==null){s.close();return;}session=s;try{session.setRepeatingRequest(requestBuilder.build(),null,cameraHandler);}catch(Throwable ignored){} activity.runOnUiThread(()->configureTransform(texture.getWidth(),texture.getHeight())); }
+                    @Override public void onConfigureFailed(CameraCaptureSession s){try{s.close();}catch(Throwable ignored){}}
+                },cameraHandler);
+            }catch(Throwable ignored){}
+        }
+
+        private void configureTransform(int viewWidth,int viewHeight){
+            if(previewSize==null||viewWidth==0||viewHeight==0)return;
+            try{
+                Matrix m=new Matrix();RectF view=new RectF(0,0,viewWidth,viewHeight);RectF buffer=new RectF(0,0,previewSize.getHeight(),previewSize.getWidth());float cx=view.centerX(),cy=view.centerY();
+                int rotation=activity.getWindowManager().getDefaultDisplay().getRotation();
+                if(rotation==Surface.ROTATION_90||rotation==Surface.ROTATION_270){buffer.offset(cx-buffer.centerX(),cy-buffer.centerY());m.setRectToRect(view,buffer,Matrix.ScaleToFit.FILL);float scale=Math.max((float)viewHeight/previewSize.getHeight(),(float)viewWidth/previewSize.get
