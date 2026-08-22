@@ -30,13 +30,11 @@ eraPage() {
         FrameLayout.LayoutParams pulseLp = new FrameLayout.LayoutParams(dp(300), dp(300), Gravity.CENTER);
         splash.addView(pulse, pulseLp);
 
-        ImageView logo = new ImageView(this);
-        logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        logo.setImageBitmap(loadEmbeddedLogo());
+        TrewxLogoView logo = new TrewxLogoView(this);
         logo.setAlpha(0f);
         logo.setScaleX(.72f);
         logo.setScaleY(.72f);
-        FrameLayout.LayoutParams logoLp = new FrameLayout.LayoutParams(dp(270), dp(270), Gravity.CENTER);
+        FrameLayout.LayoutParams logoLp = new FrameLayout.LayoutParams(dp(300), dp(300), Gravity.CENTER);
         splash.addView(logo, logoLp);
 
         TextView sub = text("QIBLAH COMPASS", 13, MUTED, true);
@@ -59,14 +57,6 @@ eraPage() {
                 try { root.removeView(splash); } catch (Throwable ignored) { }
             }).start();
         }, 1250);
-    }
-
-    private Bitmap loadEmbeddedLogo() {
-        try {
-            return BitmapFactory.decodeResource(getResources(), R.drawable.trewx_logo);
-        } catch (Throwable e) {
-            return Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888);
-        }
     }
 
     private void selectTab(int index) {
