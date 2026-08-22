@@ -37,15 +37,12 @@ jobs:
       - name: Fetch Qiblah source branch
         run: git clone --depth 1 --branch qiblah-apk-build https://github.com/athman-developer/myportfolio.git qiblah_source
 
-      - name: Assemble source and TREWX logo
+      - name: Assemble Java source
         shell: bash
         run: |
           set -e
           SRC=qiblah_source/qiblah_build/app/src/main/java/com/trewx/qiblah
           cat "$SRC"/MainActivity.java.part-* > "$SRC"/MainActivity.java
-          LOGO_DIR=qiblah_source/qiblah_build/app/src/main/res/drawable-nodpi
-          mkdir -p "$LOGO_DIR"
-          base64 -d qiblah_source/qiblah_build/trewx_logo.b64 > "$LOGO_DIR"/trewx_logo.jpg
 
       - name: Compile APK and capture result
         shell: bash
