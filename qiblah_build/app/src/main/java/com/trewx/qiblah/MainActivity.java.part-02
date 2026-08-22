@@ -1,0 +1,143 @@
+eraPage() {
+        FrameLayout page = new FrameLayout(this);
+        page.setBackgroundColor(Color.BLACK);
+        textureView = new TextureView(this);
+        page.addView(textureView, match());
+        cameraOverlay = new CameraOverlayView(this);
+        page.addView(cameraOverlay, match());
+        cameraController = new CameraController(this, textureView);
+        return page;
+    }
+
+    private void showSplash() {
+        FrameLayout root = (FrameLayout) ((ViewGroup) findViewById(android.R.id.content)).getChildAt(0);
+        LinearLayout app = null;
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View child = root.getChildAt(i);
+            if ("app".equals(child.getTag())) app = (LinearLayout) child;
+        }
+        final LinearLayout appView = app;
+
+        FrameLayout splash = new FrameLayout(this);
+        splash.setBackgroundColor(Color.WHITE);
+        root.addView(splash, match());
+
+        View pulse = new View(this);
+        GradientDrawable pulseBg = new GradientDrawable();
+        pulseBg.setShape(GradientDrawable.OVAL);
+        pulseBg.setColor(Color.argb(28, 255, 116, 23));
+        pulse.setBackground(pulseBg);
+        FrameLayout.LayoutParams pulseLp = new FrameLayout.LayoutParams(dp(300), dp(300), Gravity.CENTER);
+        splash.addView(pulse, pulseLp);
+
+        ImageView logo = new ImageView(this);
+        logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        logo.setImageBitmap(loadEmbeddedLogo());
+        logo.setAlpha(0f);
+        logo.setScaleX(.72f);
+        logo.setScaleY(.72f);
+        FrameLayout.LayoutParams logoLp = new FrameLayout.LayoutParams(dp(270), dp(270), Gravity.CENTER);
+        splash.addView(logo, logoLp);
+
+        TextView sub = text("QIBLAH COMPASS", 13, MUTED, true);
+        sub.setLetterSpacing(.18f);
+        sub.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams subLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42), Gravity.BOTTOM);
+        subLp.bottomMargin = dp(72);
+        splash.addView(sub, subLp);
+
+        pulse.setScaleX(.72f); pulse.setScaleY(.72f); pulse.setAlpha(0f);
+        pulse.animate().alpha(1f).scaleX(1.06f).scaleY(1.06f).setDuration(850).start();
+        logo.animate().alpha(1f).scaleX(1f).scaleY(1f).setInterpolator(new OvershootInterpolator(1.15f)).setDuration(720).start();
+
+        mainHandler.postDelayed(() -> {
+            if (appView != null) {
+                appView.setTranslationY(dp(12));
+                appView.animate().alpha(1f).translationY(0f).setDuration(420).start();
+            }
+            splash.animate().alpha(0f).setDuration(420).withEndAction(() -> {
+                try { root.removeView(splash); } catch (Throwable ignored) { }
+            }).start();
+        }, 1250);
+    }
+
+    private Bitmap loadEmbeddedLogo() {
+        try {
+            StringBuilder sb = new StringBuilder();
+            for (String part : LOGO_B64) sb.append(part);
+            byte[] bytes = Base64.decode(sb.toString(), Base64.DEFAULT);
+            return BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+        } catch (Throwable e) {
+            return Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888);
+        }
+    }
+
+    private void selectTab(int index) {
+        selectedTab = index;
+        compassPage.setVisibility(index == 0 ? View.VISIBLE : View.GONE);
+        calibrationPage.setVisibility(index == 1 ? View.VISIBLE : View.GONE);
+        cameraPage.setVisibility(index == 2 ? View.VISIBLE : View.GONE);
+        styleTab(tabCompass, index == 0);
+        styleTab(tabCalibrate, index == 1);
+        styleTab(tabCamera, index == 2);
+        alignmentStart = 0L;
+        locked = false;
+        if (index == 1 && figureEightView != null) figureEightView.start();
+        if (index == 2) ensureCameraPermissionAndOpen(); else if (cameraController != null) cameraController.closeCamera();
+        updateViews();
+    }
+
+    private void styleTab(Button b, boolean active) {
+        if (b == null) return;
+        b.setTextColor(active ? Color.WHITE : INK);
+        b.setBackground(rounded(active ? INK : Color.TRANSPARENT, dp(18), Color.TRANSPARENT, 0));
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        registerSensors();
+        startLocationUpdatesIfPermitted();
+        if (selectedTab == 2) ensureCameraPermissionAndOpen();
+    }
+
+    @Override protected void onPause() {
+        super.onPause();
+        try { sensorManager.unregisterListener(this); } catch (Throwable ignored) { }
+        stopLocationUpdates();
+        if (cameraController != null) cameraController.closeCamera();
+        alignmentStart = 0L;
+        locked = false;
+    }
+
+    @Override protected void onDestroy() {
+        if (cameraController != null) cameraController.shutdown();
+        if (figureEightView != null) figureEightView.stop();
+        if (toneGenerator != null) {
+            try { toneGenerator.release(); } catch (Throwable ignored) { }
+            toneGenerator = null;
+        }
+        super.onDestroy();
+    }
+
+    private void registerSensors() {
+        try {
+            sensorManager.unregisterListener(this);
+            if (rotationSensor != null) sensorManager.registerListener(this, rotationSensor, SensorManager.SENSOR_DELAY_GAME);
+            if (magneticSensor != null) sensorManager.registerListener(this, magneticSensor, SensorManager.SENSOR_DELAY_NORMAL);
+        } catch (Throwable ignored) { }
+    }
+
+    @Override public void onSensorChanged(SensorEvent event) {
+        if (event == null || event.sensor == null) return;
+        if (event.sensor.getType() == Sensor.TYPE_ROTATION_VECTOR) {
+            try {
+                SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values);
+                haveRotation = true;
+                updateDirectionVectors(rotationMatrix);
+                updateViews();
+                checkAlignmentForCurrentMode();
+            } catch (Throwable ignored) { }
+        }
+    }
+
+    @Override public void 
