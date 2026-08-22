@@ -1,0 +1,149 @@
+& (best == null || l.getAccuracy() < best.getAccuracy())) best = l;
+                    if (locationManager.isProviderEnabled(provider)) locationManager.requestLocationUpdates(provider, 10000L, 5f, locationListener);
+                } catch (Throwable ignored) { }
+            }
+            locationUpdatesStarted = true;
+            if (best != null) {
+                lastLocation = best;
+                updateQiblahFromLocation(best);
+            }
+        } catch (Throwable ignored) { }
+    }
+
+    private void stopLocationUpdates() {
+        try { if (locationManager != null) locationManager.removeUpdates(locationListener); } catch (Throwable ignored) { }
+        locationUpdatesStarted = false;
+    }
+
+    private void updateQiblahFromLocation(Location l) {
+        qiblahBearing = (float) bearingToKaaba(l.getLatitude(), l.getLongitude());
+        try {
+            GeomagneticField field = new GeomagneticField((float) l.getLatitude(), (float) l.getLongitude(), (float) l.getAltitude(), System.currentTimeMillis());
+            declination = field.getDeclination();
+        } catch (Throwable ignored) { declination = 0f; }
+        hasQiblah = true;
+        if (haveRotation) updateDirectionVectors(rotationMatrix);
+        updateViews();
+    }
+
+    private void ensureCameraPermissionAndOpen() {
+        if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_CAMERA);
+            return;
+        }
+        if (cameraController != null) cameraController.openWhenReady();
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_LOCATION) startLocationUpdatesIfPermitted();
+        if (requestCode == REQ_CAMERA && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED && selectedTab == 2) {
+            if (cameraController != null) cameraController.openWhenReady();
+        }
+    }
+
+    private double bearingToKaaba(double lat, double lon) {
+        double p1 = Math.toRadians(lat);
+        double p2 = Math.toRadians(KAABA_LAT);
+        double dl = Math.toRadians(KAABA_LON - lon);
+        double y = Math.sin(dl) * Math.cos(p2);
+        double x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+        return (Math.toDegrees(Math.atan2(y, x)) + 360.0) % 360.0;
+    }
+
+    private static float normalize(float v) {
+        while (v < 0f) v += 360f;
+        while (v >= 360f) v -= 360f;
+        return v;
+    }
+
+    private static float angleDiff(float target, float current) {
+        return ((target - current + 540f) % 360f) - 180f;
+    }
+
+    private static String cardinal(float degrees) {
+        String[] dirs = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+        return dirs[((int) Math.round(normalize(degrees) / 45.0)) % 8];
+    }
+
+    private TextView text(String value, int sp, int color, boolean bold) {
+        TextView v = new TextView(this);
+        v.setText(value);
+        v.setTextSize(sp);
+        v.setTextColor(color);
+        v.setTypeface(Typeface.create(Typeface.DEFAULT, bold ? Typeface.BOLD : Typeface.NORMAL));
+        return v;
+    }
+
+    private TextView pill(String value, int bg, int fg) {
+        TextView v = text(value, 11, fg, true);
+        v.setGravity(Gravity.CENTER);
+        v.setLetterSpacing(.08f);
+        v.setPadding(dp(12), 0, dp(12), 0);
+        v.setBackground(rounded(bg, dp(16), Color.TRANSPARENT, 0));
+        return v;
+    }
+
+    private Button navButton(String value) {
+        Button b = new Button(this);
+        b.setText(value);
+        b.setTextSize(11);
+        b.setLetterSpacing(.05f);
+        b.setTypeface(Typeface.DEFAULT_BOLD);
+        b.setAllCaps(false);
+        b.setPadding(dp(4), 0, dp(4), 0);
+        b.setStateListAnimator(null);
+        return b;
+    }
+
+    private Button actionButton(String value) {
+        Button b = new Button(this);
+        b.setText(value);
+        b.setTextColor(Color.WHITE);
+        b.setTextSize(14);
+        b.setTypeface(Typeface.DEFAULT_BOLD);
+        b.setLetterSpacing(.06f);
+        b.setAllCaps(false);
+        b.setStateListAnimator(null);
+        b.setBackground(rounded(INK, dp(18), Color.TRANSPARENT, 0));
+        return b;
+    }
+
+    private LinearLayout card() {
+        LinearLayout v = new LinearLayout(this);
+        v.setOrientation(LinearLayout.VERTICAL);
+        v.setPadding(dp(18), dp(16), dp(18), dp(16));
+        v.setBackground(rounded(Color.WHITE, dp(20), Color.rgb(232,230,223), dp(1)));
+        return v;
+    }
+
+    private GradientDrawable rounded(int color, float radius, int stroke, int strokeWidth) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(radius);
+        if (strokeWidth > 0) d.setStroke(strokeWidth, stroke);
+        return d;
+    }
+
+    private FrameLayout.LayoutParams match() {
+        return new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+    }
+
+    private LinearLayout.LayoutParams lpMatchWrap(int top, int bottom) {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        p.topMargin = top;
+        p.bottomMargin = bottom;
+        return p;
+    }
+
+    private int dp(float n) { return (int) (n * getResources().getDisplayMetrics().density + .5f); }
+
+    private static class Direction {
+        final float azimuth;
+        final float horizontalStrength;
+        Direction(float azimuth, float strength) { this.azimuth = azimuth; this.horizontalStrength = strength; }
+    }
+
+    private class CompassView extends View {
+        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private float targetHeading = 0f, displayHeading 
