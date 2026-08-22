@@ -1,15 +1,15 @@
-name: Qiblah APK Issue Builder
+name: TREWX Qiblah APK Builder
 
 on:
-  issues:
-    types: [opened]
+  pull_request:
+    types: [opened, synchronize]
 
 permissions:
   contents: write
 
 jobs:
   build:
-    if: github.event.issue.title == 'QIBLAH_V3_BUILD_20260822'
+    if: github.event.pull_request.title == 'TREWX Qiblah v3 build'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
