@@ -102,6 +102,8 @@ public class MainActivity extends Activity implements SensorEventListener {
     private View compassPage;
     private View calibrationPage;
     private View cameraPage;
+    private View prayerPage;
+    private PrayerDashboardView prayerDashboard;
     private CompassView compassView;
     private FigureEightView figureEightView;
     private TextView calibrationStatus;
@@ -109,7 +111,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     private TextureView textureView;
     private CameraOverlayView cameraOverlay;
     private CameraController cameraController;
-    private Button tabCompass, tabCalibrate, tabCamera;
+    private Button tabCompass, tabCalibrate, tabCamera, tabPrayer;
     private int selectedTab = 0;
 
     private ToneGenerator toneGenerator;
@@ -122,6 +124,8 @@ public class MainActivity extends Activity implements SensorEventListener {
             if (location == null) return;
             lastLocation = location;
             updateQiblahFromLocation(location);
+            PrayerScheduler.onLocationUpdate(MainActivity.this, location);
+            if (prayerDashboard != null && selectedTab == 3) prayerDashboard.refresh();
         }
         @Override public void onProviderEnabled(String provider) { }
         @Override public void onProviderDisabled(String provider) { }
@@ -147,6 +151,7 @@ public class MainActivity extends Activity implements SensorEventListener {
 
         buildUi();
         requestLocationPermissionIfNeeded();
+        if (getIntent() != null && getIntent().getBooleanExtra("open_prayers", false)) selectTab(3);
         showSplash();
     }
 
