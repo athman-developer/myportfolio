@@ -1,0 +1,124 @@
+= new FrameLayout(this);
+        root.setBackgroundColor(CREAM);
+        setContentView(root);
+
+        LinearLayout app = new LinearLayout(this);
+        app.setOrientation(LinearLayout.VERTICAL);
+        app.setAlpha(0f);
+        app.setTag("app");
+        root.addView(app, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(20), dp(14), dp(20), dp(10));
+        app.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)));
+
+        View mark = new View(this);
+        GradientDrawable markBg = new GradientDrawable();
+        markBg.setShape(GradientDrawable.OVAL);
+        markBg.setColor(ORANGE);
+        mark.setBackground(markBg);
+        header.addView(mark, new LinearLayout.LayoutParams(dp(20), dp(20)));
+
+        TextView title = new TextView(this);
+        title.setText("TREWX  QIBLAH");
+        title.setTextColor(INK);
+        title.setTextSize(20);
+        title.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+        LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        titleLp.leftMargin = dp(10);
+        header.addView(title, titleLp);
+
+        TextView live = pill("LIVE", ORANGE, Color.WHITE);
+        header.addView(live, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(32)));
+
+        content = new FrameLayout(this);
+        app.addView(content, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        compassPage = buildCompassPage();
+        calibrationPage = buildCalibrationPage();
+        cameraPage = buildCameraPage();
+        content.addView(compassPage, match());
+        content.addView(calibrationPage, match());
+        content.addView(cameraPage, match());
+
+        LinearLayout nav = new LinearLayout(this);
+        nav.setOrientation(LinearLayout.HORIZONTAL);
+        nav.setGravity(Gravity.CENTER);
+        nav.setPadding(dp(12), dp(8), dp(12), dp(10));
+        GradientDrawable navBg = new GradientDrawable();
+        navBg.setColor(Color.WHITE);
+        navBg.setStroke(dp(1), Color.rgb(232, 230, 223));
+        nav.setBackground(navBg);
+        app.addView(nav, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(74)));
+
+        tabCompass = navButton("COMPASS");
+        tabCalibrate = navButton("CALIBRATE");
+        tabCamera = navButton("CAMERA");
+        nav.addView(tabCompass, new LinearLayout.LayoutParams(0, dp(52), 1f));
+        nav.addView(tabCalibrate, new LinearLayout.LayoutParams(0, dp(52), 1f));
+        nav.addView(tabCamera, new LinearLayout.LayoutParams(0, dp(52), 1f));
+        tabCompass.setOnClickListener(v -> selectTab(0));
+        tabCalibrate.setOnClickListener(v -> selectTab(1));
+        tabCamera.setOnClickListener(v -> selectTab(2));
+        selectTab(0);
+    }
+
+    private View buildCompassPage() {
+        FrameLayout page = new FrameLayout(this);
+        compassView = new CompassView(this);
+        page.addView(compassView, match());
+        return page;
+    }
+
+    private View buildCalibrationPage() {
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(20), dp(8), dp(20), dp(24));
+        scroll.addView(box, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView h = text("Reset & calibrate", 28, INK, true);
+        box.addView(h);
+        TextView intro = text("If the compass drifts or points the wrong way, reset the app filter and recalibrate your phone's magnetic sensor.", 15, MUTED, false);
+        intro.setPadding(0, dp(8), 0, dp(14));
+        box.addView(intro);
+
+        LinearLayout statusCard = card();
+        box.addView(statusCard, lpMatchWrap(dp(0), dp(8)));
+        calibrationStatus = text("Sensor status: checking…", 17, INK, true);
+        statusCard.addView(calibrationStatus);
+        calibrationSubtext = text("Move away from magnets, speakers, steel desks and vehicle dashboards.", 14, MUTED, false);
+        calibrationSubtext.setPadding(0, dp(5), 0, 0);
+        statusCard.addView(calibrationSubtext);
+
+        figureEightView = new FigureEightView(this);
+        GradientDrawable figBg = rounded(Color.WHITE, dp(24), Color.rgb(232,230,223), dp(1));
+        figureEightView.setBackground(figBg);
+        LinearLayout.LayoutParams figLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(220));
+        figLp.topMargin = dp(14);
+        box.addView(figureEightView, figLp);
+
+        TextView steps = text(
+                "1   Hold the phone firmly and move it in a large figure 8 three to five times.\n\n" +
+                "2   Slowly rotate the phone once around each axis: portrait, landscape and face-up.\n\n" +
+                "3   Keep at least 30 cm away from metal, magnets, speakers and another phone.\n\n" +
+                "4   Tap RESET COMPASS below, then return to Compass and check the bearing again.",
+                15, INK, false);
+        steps.setLineSpacing(0f, 1.12f);
+        steps.setPadding(0, dp(18), 0, dp(16));
+        box.addView(steps);
+
+        Button reset = actionButton("RESET COMPASS");
+        reset.setOnClickListener(v -> resetCompassFilter());
+        box.addView(reset, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)));
+
+        TextView note = text("Resetting restarts TREWX's orientation filter. The figure-8 movement is what recalibrates the phone's physical magnetometer.", 13, MUTED, false);
+        note.setPadding(dp(4), dp(12), dp(4), 0);
+        box.addView(note);
+        return scroll;
+    }
+
+    private View buildCam
