@@ -1,1 +1,1 @@
-TREWX Qiblah v3 pull request build trigger — Android SDK setup retry.
+TREWX Qiblah v3 pull request build trigger — lightweight logo and compile validation retry.
