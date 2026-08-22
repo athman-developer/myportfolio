@@ -1,0 +1,84 @@
+ateOnAnimation();
+        }
+
+        private float spPx(float sp) { return sp * getResources().getDisplayMetrics().scaledDensity; }
+    }
+
+    private class FigureEightView extends View {
+        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private float phase = 0f;
+        private boolean running = false;
+        private final Runnable tick = new Runnable() {
+            @Override public void run() {
+                if (!running || getWindowToken()==null) return;
+                phase += .045f;
+                if (phase > (float)(Math.PI*2)) phase = 0f;
+                invalidate(); postDelayed(this,16);
+            }
+        };
+        FigureEightView(Context c) { super(c); }
+        void start(){ if(running)return; running=true; removeCallbacks(tick); post(tick); }
+        void stop(){ running=false; removeCallbacks(tick); }
+        void restart(){ stop(); phase=0; start(); }
+        @Override protected void onAttachedToWindow(){ super.onAttachedToWindow(); start(); }
+        @Override protected void onDetachedFromWindow(){ stop(); super.onDetachedFromWindow(); }
+        @Override protected void onDraw(Canvas c){
+            super.onDraw(c); float w=getWidth(),h=getHeight(),cx=w/2,cy=h/2;
+            p.setStyle(Paint.Style.FILL); p.setColor(INK); p.setTextAlign(Paint.Align.CENTER); p.setTypeface(Typeface.DEFAULT_BOLD); p.setTextSize(spPx(16));
+            c.drawText("MOVE THE PHONE IN A FIGURE 8",cx,dp(38),p);
+            p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(4));p.setColor(Color.rgb(225,223,216));
+            Path path=new Path();
+            for(int i=0;i<=180;i++){ double t=i*Math.PI*2/180; float x=cx+(float)Math.sin(t)*w*.29f; float y=cy+(float)(Math.sin(t)*Math.cos(t))*h*.30f; if(i==0)path.moveTo(x,y);else path.lineTo(x,y); }
+            c.drawPath(path,p);
+            float x=cx+(float)Math.sin(phase)*w*.29f; float y=cy+(float)(Math.sin(phase)*Math.cos(phase))*h*.30f;
+            p.setStyle(Paint.Style.FILL);p.setColor(ORANGE);c.drawCircle(x,y,dp(10),p);p.setColor(Color.argb(35,255,116,23));c.drawCircle(x,y,dp(19),p);
+        }
+        private float spPx(float sp){return sp*getResources().getDisplayMetrics().scaledDensity;}
+    }
+
+    private class CameraOverlayView extends View {
+        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private float targetAz=0, displayAz=0, q=0, strength=0;
+        private boolean has=false, isLocked=false, first=true;
+        CameraOverlayView(Context c){super(c); setLayerType(LAYER_TYPE_SOFTWARE,null);}
+        void setData(float az,float qib,boolean hasQ,float s,boolean lock){targetAz=normalize(az);q=qib;has=hasQ;strength=s;isLocked=lock;if(first){displayAz=targetAz;first=false;}postInvalidateOnAnimation();}
+        void resetAnimation(){first=true;invalidate();}
+        @Override protected void onDraw(Canvas c){
+            super.onDraw(c); displayAz=normalize(displayAz+angleDiff(targetAz,displayAz)*.18f);
+            float w=getWidth(),h=getHeight(),cx=w/2,cy=h*.50f;
+            p.setStyle(Paint.Style.FILL);p.setColor(Color.argb(120,0,0,0));c.drawRoundRect(dp(18),dp(18),w-dp(18),dp(102),dp(22),dp(22),p);
+            p.setTextAlign(Paint.Align.CENTER);p.setTypeface(Typeface.DEFAULT_BOLD);p.setTextSize(spPx(12));p.setColor(Color.WHITE);c.drawText("CAMERA DIRECTION",cx,dp(45),p);
+            p.setTextSize(spPx(30));p.setColor(isLocked?Color.rgb(110,255,185):Color.WHITE);c.drawText(Math.round(displayAz)+"°  "+cardinal(displayAz),cx,dp(82),p);
+
+            p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(2));p.setColor(Color.argb(210,255,255,255));
+            c.drawCircle(cx,cy,dp(42),p);c.drawLine(cx-dp(62),cy,cx-dp(18),cy,p);c.drawLine(cx+dp(18),cy,cx+dp(62),cy,p);c.drawLine(cx,cy-dp(62),cx,cy-dp(18),p);c.drawLine(cx,cy+dp(18),cx,cy+dp(62),p);
+            p.setColor(isLocked?GREEN:ORANGE);p.setStrokeWidth(dp(5));c.drawLine(cx,cy-dp(110),cx,cy-dp(70),p);
+
+            String msg;
+            if(strength<.28f) msg="Hold the phone upright so the rear camera points toward the horizon";
+            else if(!has) msg="Waiting for location to calculate Qiblah";
+            else {
+                float diff=angleDiff(q,displayAz),abs=Math.abs(diff);
+                msg=isLocked?"QIBLAH LOCKED — CAMERA IS FACING MAKKAH":abs<4?"Hold steady…":"Turn camera "+Math.round(abs)+"° "+(diff>0?"right":"left");
+                if(!isLocked){
+                    float arrowX=cx + Math.max(-w*.30f,Math.min(w*.30f,diff/45f*w*.30f));
+                    p.setStyle(Paint.Style.FILL);p.setColor(ORANGE);Path a=new Path();a.moveTo(arrowX,cy-dp(92));a.lineTo(arrowX-dp(13),cy-dp(68));a.lineTo(arrowX+dp(13),cy-dp(68));a.close();c.drawPath(a,p);
+                }
+            }
+            p.setStyle(Paint.Style.FILL);p.setColor(Color.argb(155,0,0,0));c.drawRoundRect(dp(18),h-dp(118),w-dp(18),h-dp(24),dp(22),dp(22),p);
+            p.setTextAlign(Paint.Align.CENTER);p.setTypeface(Typeface.DEFAULT_BOLD);p.setTextSize(spPx(15));p.setColor(isLocked?Color.rgb(110,255,185):Color.WHITE);
+            drawCenteredWrappedText(c,msg,cx,h-dp(78),w-dp(60),p);
+            if(has){p.setTypeface(Typeface.DEFAULT);p.setTextSize(spPx(12));p.setColor(Color.LTGRAY);c.drawText("Qiblah bearing "+Math.round(q)+"°",cx,h-dp(42),p);}
+            if(Math.abs(angleDiff(targetAz,displayAz))>.05f||isLocked)postInvalidateOnAnimation();
+        }
+        private void drawCenteredWrappedText(Canvas c,String s,float x,float y,float max,Paint p){
+            if(p.measureText(s)<=max){c.drawText(s,x,y,p);return;} int mid=s.length()/2,cut=s.lastIndexOf(' ',mid);if(cut<1)cut=mid;c.drawText(s.substring(0,cut),x,y-dp(9),p);c.drawText(s.substring(cut+1),x,y+dp(12),p);
+        }
+        private float spPx(float sp){return sp*getResources().getDisplayMetrics().scaledDensity;}
+    }
+
+    private static class CameraController {
+        private final Activity activity;
+        private final TextureView texture;
+        private CameraManager manager;
+        pri
