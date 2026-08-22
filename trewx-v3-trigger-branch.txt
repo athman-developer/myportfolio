@@ -1,1 +1,1 @@
-Qibla Compass build trigger — renamed app and bumped version.
+Qibla Compass build trigger — prayer times and call-style reminders release.
