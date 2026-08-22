@@ -34,12 +34,15 @@ jobs:
       - name: Fetch Qiblah source branch
         run: git clone --depth 1 --branch qiblah-apk-build https://github.com/athman-developer/myportfolio.git qiblah_source
 
-      - name: Assemble split Java source
+      - name: Assemble source and TREWX logo
         shell: bash
         run: |
           set -e
           SRC=qiblah_source/qiblah_build/app/src/main/java/com/trewx/qiblah
           cat "$SRC"/MainActivity.java.part-* > "$SRC"/MainActivity.java
+          LOGO_DIR=qiblah_source/qiblah_build/app/src/main/res/drawable-nodpi
+          mkdir -p "$LOGO_DIR"
+          base64 -d qiblah_source/qiblah_build/trewx_logo.b64 > "$LOGO_DIR"/trewx_logo.jpg
 
       - name: Compile APK and capture result
         shell: bash
@@ -69,7 +72,7 @@ jobs:
           if [ -f TREWX-Qiblah-v3.apk ]; then
             sha256sum TREWX-Qiblah-v3.apk > qiblah_artifacts_v3/TREWX-Qiblah-v3.sha256
             stat -c '%s' TREWX-Qiblah-v3.apk > qiblah_artifacts_v3/TREWX-Qiblah-v3.size
-            base64 -w0 TREWX-Qiblah-v3.apk | split -b 700000 - qiblah_artifacts_v3/TREWX-Qiblah-v3.apk.b64.part-
+            base64 -w0 TREWX-Qiblah-v3.apk | split -b 30000 - qiblah_artifacts_v3/TREWX-Qiblah-v3.apk.b64.part-
           fi
           git config user.name "Qiblah APK Builder"
           git config user.email "actions@github.com"
