@@ -12,7 +12,7 @@
     <application
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
-        android:label="TREWX Qiblah"
+        android:label="Qibla Compass"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity
