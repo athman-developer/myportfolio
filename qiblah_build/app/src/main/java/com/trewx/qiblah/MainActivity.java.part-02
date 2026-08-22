@@ -37,7 +37,7 @@ eraPage() {
         FrameLayout.LayoutParams logoLp = new FrameLayout.LayoutParams(dp(300), dp(300), Gravity.CENTER);
         splash.addView(logo, logoLp);
 
-        TextView sub = text("QIBLAH COMPASS", 13, MUTED, true);
+        TextView sub = text("QIBLA COMPASS", 13, MUTED, true);
         sub.setLetterSpacing(.18f);
         sub.setGravity(Gravity.CENTER);
         FrameLayout.LayoutParams subLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42), Gravity.BOTTOM);
@@ -64,13 +64,16 @@ eraPage() {
         compassPage.setVisibility(index == 0 ? View.VISIBLE : View.GONE);
         calibrationPage.setVisibility(index == 1 ? View.VISIBLE : View.GONE);
         cameraPage.setVisibility(index == 2 ? View.VISIBLE : View.GONE);
+        prayerPage.setVisibility(index == 3 ? View.VISIBLE : View.GONE);
         styleTab(tabCompass, index == 0);
         styleTab(tabCalibrate, index == 1);
         styleTab(tabCamera, index == 2);
+        styleTab(tabPrayer, index == 3);
         alignmentStart = 0L;
         locked = false;
         if (index == 1 && figureEightView != null) figureEightView.start();
         if (index == 2) ensureCameraPermissionAndOpen(); else if (cameraController != null) cameraController.closeCamera();
+        if (index == 3 && prayerDashboard != null) prayerDashboard.refresh();
         updateViews();
     }
 
@@ -85,6 +88,13 @@ eraPage() {
         registerSensors();
         startLocationUpdatesIfPermitted();
         if (selectedTab == 2) ensureCameraPermissionAndOpen();
+        if (selectedTab == 3 && prayerDashboard != null) prayerDashboard.refresh();
+    }
+
+    @Override protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && intent.getBooleanExtra("open_prayers", false)) selectTab(3);
     }
 
     @Override protected void onPause() {
