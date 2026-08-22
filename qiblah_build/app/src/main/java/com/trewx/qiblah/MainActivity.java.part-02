@@ -63,10 +63,7 @@ eraPage() {
 
     private Bitmap loadEmbeddedLogo() {
         try {
-            StringBuilder sb = new StringBuilder();
-            for (String part : LOGO_B64) sb.append(part);
-            byte[] bytes = Base64.decode(sb.toString(), Base64.DEFAULT);
-            return BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            return BitmapFactory.decodeResource(getResources(), R.drawable.trewx_logo);
         } catch (Throwable e) {
             return Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888);
         }
