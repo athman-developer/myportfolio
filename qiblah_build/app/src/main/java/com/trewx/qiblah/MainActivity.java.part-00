@@ -1,0 +1,154 @@
+package com.trewx.qiblah;
+
+import android.Manifest;
+import android.animation.ValueAnimator;
+import android.app.Activity;
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RectF;
+import android.graphics.SurfaceTexture;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.hardware.GeomagneticField;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCaptureSession;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraDevice;
+import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.params.StreamConfigurationMap;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.media.AudioManager;
+import android.media.ToneGenerator;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.Looper;
+import android.os.SystemClock;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.os.VibratorManager;
+import android.provider.Settings;
+import android.util.Base64;
+import android.util.Size;
+import android.view.Gravity;
+import android.view.Surface;
+import android.view.TextureView;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
+import android.view.animation.OvershootInterpolator;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+
+public class MainActivity extends Activity implements SensorEventListener {
+    private static final int REQ_LOCATION = 41;
+    private static final int REQ_CAMERA = 42;
+    private static final double KAABA_LAT = 21.422487;
+    private static final double KAABA_LON = 39.826206;
+
+    private static final int ORANGE = Color.rgb(255, 116, 23);
+    private static final int INK = Color.rgb(24, 24, 24);
+    private static final int CREAM = Color.rgb(248, 247, 242);
+    private static final int GREEN = Color.rgb(15, 138, 95);
+    private static final int MUTED = Color.rgb(105, 105, 105);
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private SensorManager sensorManager;
+    private Sensor rotationSensor;
+    private Sensor magneticSensor;
+    private final float[] rotationMatrix = new float[9];
+    private boolean haveRotation = false;
+    private float rawTopAzimuth = 0f;
+    private float rawCameraAzimuth = 0f;
+    private float topHorizontalStrength = 0f;
+    private float cameraHorizontalStrength = 0f;
+    private float declination = 0f;
+    private int magneticAccuracy = SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM;
+
+    private LocationManager locationManager;
+    private Location lastLocation;
+    private float qiblahBearing = 0f;
+    private boolean hasQiblah = false;
+    private boolean locationUpdatesStarted = false;
+
+    private FrameLayout content;
+    private View compassPage;
+    private View calibrationPage;
+    private View cameraPage;
+    private CompassView compassView;
+    private FigureEightView figureEightView;
+    private TextView calibrationStatus;
+    private TextView calibrationSubtext;
+    private TextureView textureView;
+    private CameraOverlayView cameraOverlay;
+    private CameraController cameraController;
+    private Button tabCompass, tabCalibrate, tabCamera;
+    private int selectedTab = 0;
+
+    private ToneGenerator toneGenerator;
+    private long alignmentStart = 0L;
+    private boolean locked = false;
+    private long lastFeedback = 0L;
+
+    private final LocationListener locationListener = new LocationListener() {
+        @Override public void onLocationChanged(Location location) {
+            if (location == null) return;
+            lastLocation = location;
+            updateQiblahFromLocation(location);
+        }
+        @Override public void onProviderEnabled(String provider) { }
+        @Override public void onProviderDisabled(String provider) { }
+        @SuppressWarnings("deprecation")
+        @Override public void onStatusChanged(String provider, int status, Bundle extras) { }
+    };
+
+    @Override protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        getWindow().setStatusBarColor(CREAM);
+        getWindow().setNavigationBarColor(CREAM);
+        if (Build.VERSION.SDK_INT >= 23) {
+            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        }
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        rotationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+        magneticSensor = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+        locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+        try { toneGenerator = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 78); } catch (Throwable ignored) { }
+
+        buildUi();
+        requestLocationPermissionIfNeeded();
+        showSplash();
+    }
+
+    private void buildUi() {
+        FrameLayout root 
