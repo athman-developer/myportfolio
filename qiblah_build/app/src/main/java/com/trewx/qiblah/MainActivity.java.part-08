@@ -1,0 +1,9 @@
+Width());m.postScale(scale,scale,cx,cy);m.postRotate(90*(rotation-2),cx,cy);}else if(rotation==Surface.ROTATION_180)m.postRotate(180,cx,cy);
+                texture.setTransform(m);
+            }catch(Throwable ignored){}
+        }
+
+        synchronized void closeCamera(){ wantOpen=false; try{if(session!=null)session.close();}catch(Throwable ignored){}session=null;try{if(device!=null)device.close();}catch(Throwable ignored){}device=null;try{if(previewSurface!=null)previewSurface.release();}catch(Throwable ignored){}previewSurface=null;opening=false; }
+        void shutdown(){ closeCamera(); if(cameraThread!=null){try{cameraThread.quitSafely();cameraThread.join(800);}catch(Throwable ignored){}cameraThread=null;cameraHandler=null;} }
+    }
+}
