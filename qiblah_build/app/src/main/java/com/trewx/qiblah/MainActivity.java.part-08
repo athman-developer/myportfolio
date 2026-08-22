@@ -20,7 +20,7 @@ Width());m.postScale(scale,scale,cx,cy);m.postRotate(90*(rotation-2),cx,cy);}els
             c.drawCircle(w * .36f, h * .49f, s * .275f, p);
             p.setColor(INK);
             c.drawCircle(w * .69f, h * .37f, s * .17f, p);
-            p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BLACK));
+            p.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
             p.setTextAlign(Paint.Align.CENTER);
             p.setTextSize(s * .105f);
             c.drawText("TREWX.", w * .69f, h * .70f, p);
