@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   build:
-    if: github.event.issue.title == 'QIBLAH_APK_BUILD_20260822'
+    if: github.event.issue.title == 'QIBLAH_V3_BUILD_20260822'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -34,6 +34,13 @@ jobs:
       - name: Fetch Qiblah source branch
         run: git clone --depth 1 --branch qiblah-apk-build https://github.com/athman-developer/myportfolio.git qiblah_source
 
+      - name: Assemble split Java source
+        shell: bash
+        run: |
+          set -e
+          SRC=qiblah_source/qiblah_build/app/src/main/java/com/trewx/qiblah
+          cat "$SRC"/MainActivity.java.part-* > "$SRC"/MainActivity.java
+
       - name: Compile APK and capture result
         shell: bash
         run: |
@@ -44,7 +51,7 @@ jobs:
           cd ../..
           echo "$BUILD_STATUS" > qiblah-build-status-code.txt
           if [ "$BUILD_STATUS" -eq 0 ] && [ -f qiblah_source/qiblah_build/app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp qiblah_source/qiblah_build/app/build/outputs/apk/debug/app-debug.apk QiblahDirection.apk
+            cp qiblah_source/qiblah_build/app/build/outputs/apk/debug/app-debug.apk TREWX-Qiblah-v3.apk
             echo SUCCESS > qiblah-status.txt
           else
             echo FAILED > qiblah-status.txt
@@ -54,18 +61,18 @@ jobs:
       - name: Commit result to main
         shell: bash
         run: |
-          rm -rf qiblah_artifacts
-          mkdir -p qiblah_artifacts
-          cp qiblah-status.txt qiblah_artifacts/status.txt
-          cp qiblah-build-status-code.txt qiblah_artifacts/status-code.txt
-          cp qiblah-build.log qiblah_artifacts/build.log
-          if [ -f QiblahDirection.apk ]; then
-            sha256sum QiblahDirection.apk > qiblah_artifacts/QiblahDirection.sha256
-            stat -c '%s' QiblahDirection.apk > qiblah_artifacts/QiblahDirection.size
-            base64 -w0 QiblahDirection.apk | split -b 700000 - qiblah_artifacts/QiblahDirection.apk.b64.part-
+          rm -rf qiblah_artifacts_v3
+          mkdir -p qiblah_artifacts_v3
+          cp qiblah-status.txt qiblah_artifacts_v3/status.txt
+          cp qiblah-build-status-code.txt qiblah_artifacts_v3/status-code.txt
+          cp qiblah-build.log qiblah_artifacts_v3/build.log
+          if [ -f TREWX-Qiblah-v3.apk ]; then
+            sha256sum TREWX-Qiblah-v3.apk > qiblah_artifacts_v3/TREWX-Qiblah-v3.sha256
+            stat -c '%s' TREWX-Qiblah-v3.apk > qiblah_artifacts_v3/TREWX-Qiblah-v3.size
+            base64 -w0 TREWX-Qiblah-v3.apk | split -b 700000 - qiblah_artifacts_v3/TREWX-Qiblah-v3.apk.b64.part-
           fi
           git config user.name "Qiblah APK Builder"
           git config user.email "actions@github.com"
-          git add qiblah_artifacts
-          git commit -m "Store Qiblah APK build result [skip ci]" || true
+          git add qiblah_artifacts_v3
+          git commit -m "Store TREWX Qiblah v3 build result [skip ci]" || true
           git push origin HEAD:main
