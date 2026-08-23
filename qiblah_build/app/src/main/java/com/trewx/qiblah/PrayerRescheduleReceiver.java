@@ -6,6 +6,15 @@ import android.content.Intent;
 
 public class PrayerRescheduleReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
-        PrayerScheduler.scheduleFromSaved(context);
+        final Context app = context.getApplicationContext();
+        final PendingResult pendingResult = goAsync();
+        new Thread(() -> {
+            try {
+                PrayerScheduler.scheduleFromSaved(app);
+            } catch (Throwable ignored) {
+            } finally {
+                pendingResult.finish();
+            }
+        }, "Qibla-PrayerReschedule").start();
     }
 }
