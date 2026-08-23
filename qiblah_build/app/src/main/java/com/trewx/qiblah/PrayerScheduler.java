@@ -87,9 +87,6 @@ public final class PrayerScheduler {
         if (ll == null) return;
         scheduleUpcoming(context, ll[0], ll[1]);
         scheduleDailyMaintenance(context);
-        // Keep a foreground reminder process alive. If this call originates from a background
-        // context where Android temporarily disallows starting an FGS, start() safely catches it;
-        // the already-scheduled RTC_WAKEUP alarms remain valid either way.
         PrayerKeeperService.start(context);
     }
 
@@ -172,7 +169,8 @@ public final class PrayerScheduler {
         PrayerKeeperService.start(context);
         AlarmManager alarm = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (alarm == null) return;
-        long trigger = System.currentTimeMillis() + Math.max(15000L, delayMillis);
+        long actualDelay = Math.max(15000L, delayMillis);
+        long trigger = System.currentTimeMillis() + actualDelay;
         Intent intent = new Intent(context, PrayerAlarmReceiver.class);
         intent.setAction(ACTION_PRAYER + ".TEST");
         intent.putExtra("prayer", "Background test");
@@ -181,6 +179,11 @@ public final class PrayerScheduler {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         scheduleWakeAlarm(context, alarm, trigger, operation,
                 prayerScreenIntent(context, TEST_REQUEST + 200000));
+
+        long seconds = Math.max(1L, Math.round(actualDelay / 1000.0));
+        ActionFeedback.notifyWaiting(context,
+                "Background reminder test scheduled",
+                "Button received. Please wait " + seconds + " seconds. You can close Qibla Compass or lock the screen now.");
     }
 
     public static void scheduleDailyMaintenance(Context context) {
