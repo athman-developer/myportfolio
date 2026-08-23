@@ -1,1 +1,1 @@
-Qibla Compass build trigger — prayer times and call-style reminders release.
+Qibla Compass build trigger — incoming-call slider redesign v4.1.
