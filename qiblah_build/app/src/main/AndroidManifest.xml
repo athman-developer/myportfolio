@@ -22,6 +22,11 @@
         android:theme="@style/AppTheme">
 
         <activity
+            android:name=".CallStyleSettingsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name=".PrayerCallActivity"
             android:excludeFromRecents="true"
             android:exported="false"
