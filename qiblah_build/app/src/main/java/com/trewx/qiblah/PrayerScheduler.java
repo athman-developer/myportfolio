@@ -38,6 +38,7 @@ public final class PrayerScheduler {
                 .putLong(KEY_LON, Double.doubleToRawLongBits(lon))
                 .putLong(KEY_LAST_LOCATION_UPDATE, System.currentTimeMillis())
                 .apply();
+        PrayerKeeperService.start(context);
         scheduleFromSaved(context);
     }
 
@@ -47,6 +48,7 @@ public final class PrayerScheduler {
                 .apply();
         cancelUpcoming(context);
         cancelMaintenance(context);
+        PrayerKeeperService.stop(context);
     }
 
     public static void onLocationUpdate(Context context, Location location) {
@@ -85,6 +87,10 @@ public final class PrayerScheduler {
         if (ll == null) return;
         scheduleUpcoming(context, ll[0], ll[1]);
         scheduleDailyMaintenance(context);
+        // Keep a foreground reminder process alive. If this call originates from a background
+        // context where Android temporarily disallows starting an FGS, start() safely catches it;
+        // the already-scheduled RTC_WAKEUP alarms remain valid either way.
+        PrayerKeeperService.start(context);
     }
 
     public static void scheduleUpcoming(Context context, double lat, double lon) {
@@ -98,8 +104,6 @@ public final class PrayerScheduler {
         today.set(Calendar.SECOND, 0);
         today.set(Calendar.MILLISECOND, 0);
 
-        // A rolling ten-day window means the app does not need to be opened every day.
-        // Every fired prayer alarm and the maintenance alarm refresh this window.
         for (int d = 0; d < DAYS_AHEAD; d++) {
             Calendar date = (Calendar) today.clone();
             date.add(Calendar.DAY_OF_MONTH, d);
@@ -135,8 +139,6 @@ public final class PrayerScheduler {
                     || alarm.canScheduleExactAlarms();
 
             if (exactAllowed) {
-                // AlarmClock alarms are Android's strongest user-visible wake alarms. They leave
-                // Doze if necessary and can fire while the process is dead and the screen is off.
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     alarm.setAlarmClock(new AlarmManager.AlarmClockInfo(trigger, showIntent), operation);
                 } else {
@@ -167,6 +169,7 @@ public final class PrayerScheduler {
     }
 
     public static void scheduleTest(Context context, long delayMillis) {
+        PrayerKeeperService.start(context);
         AlarmManager alarm = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (alarm == null) return;
         long trigger = System.currentTimeMillis() + Math.max(15000L, delayMillis);
