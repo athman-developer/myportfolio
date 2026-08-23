@@ -16,9 +16,9 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.Gravity;
-import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -47,6 +47,7 @@ public class PrayerDashboardView extends ScrollView {
     private TextView locationStatus;
     private TextView nextPrayer;
     private TextView reminderStatus;
+    private TextView backgroundStatus;
     private Button enableButton;
     private Location currentLocation;
 
@@ -79,7 +80,7 @@ public class PrayerDashboardView extends ScrollView {
 
         LinearLayout hero = card();
         box.addView(hero, spaced());
-        TextView caller = text("الله", 38, INK, true);
+        TextView caller = text("الله", 58, INK, true);
         caller.setGravity(Gravity.CENTER_HORIZONTAL);
         hero.addView(caller);
         TextView callerSub = text("CALL-STYLE PRAYER REMINDER", 12, ORANGE, true);
@@ -121,13 +122,43 @@ public class PrayerDashboardView extends ScrollView {
         enableButton.setOnClickListener(v -> toggleReminders());
         box.addView(enableButton, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)));
 
-        Button permissions = button("CHECK ALARM PERMISSIONS", Color.rgb(82,82,82));
+        Button permissions = button("CHECK REMINDER PERMISSIONS", Color.rgb(82,82,82));
         LinearLayout.LayoutParams permLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
         permLp.topMargin = dp(10);
         box.addView(permissions, permLp);
         permissions.setOnClickListener(v -> requestNextCapability());
 
-        Button test = button("TEST CALL SCREEN", ORANGE);
+        LinearLayout reliability = card();
+        LinearLayout.LayoutParams relLp = spaced();
+        relLp.topMargin = dp(14);
+        box.addView(reliability, relLp);
+        TextView relTitle = text("Background reliability", 18, INK, true);
+        reliability.addView(relTitle);
+        backgroundStatus = text("Checking battery/background access…", 13, MUTED, false);
+        backgroundStatus.setPadding(0, dp(6), 0, dp(10));
+        reliability.addView(backgroundStatus);
+
+        Button background = button("ALLOW BACKGROUND REMINDERS", GREEN);
+        reliability.addView(background, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50)));
+        background.setOnClickListener(v -> requestBackgroundAccess());
+
+        Button appBattery = button("OPEN APP BATTERY SETTINGS", Color.rgb(82,82,82));
+        LinearLayout.LayoutParams batteryLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
+        batteryLp.topMargin = dp(8);
+        reliability.addView(appBattery, batteryLp);
+        appBattery.setOnClickListener(v -> openAppSettings());
+
+        TextView relNote = text("On phones with Auto launch, Background activity, Sleep apps, or App battery management, allow Qibla Compass to run in the background. This is especially important if reminders stop when the app is swiped away.", 12, MUTED, false);
+        relNote.setPadding(dp(2), dp(10), dp(2), 0);
+        reliability.addView(relNote);
+
+        Button bgTest = button("TEST BACKGROUND REMINDER IN 1 MIN", GREEN);
+        LinearLayout.LayoutParams bgTestLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        bgTestLp.topMargin = dp(12);
+        box.addView(bgTest, bgTestLp);
+        bgTest.setOnClickListener(v -> scheduleBackgroundTest());
+
+        Button test = button("TEST CALL SCREEN NOW", ORANGE);
         LinearLayout.LayoutParams testLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
         testLp.topMargin = dp(10);
         box.addView(test, testLp);
@@ -137,7 +168,7 @@ public class PrayerDashboardView extends ScrollView {
             activity.startActivity(i);
         });
 
-        TextView note = text("For reliable reminders, allow Notifications, Alarms & reminders, and Full-screen notifications when Android offers those permissions. Times are recalculated after restart, time-zone changes and app updates.", 12, MUTED, false);
+        TextView note = text("For reliable reminders, allow Notifications, Alarms & reminders, Full-screen notifications, and background battery access. Qibla Compass now keeps a rolling ten-day prayer schedule and refreshes it automatically after restart, time-zone changes and every midnight.", 12, MUTED, false);
         note.setPadding(dp(4), dp(13), dp(4), 0);
         box.addView(note);
     }
@@ -228,10 +259,23 @@ public class PrayerDashboardView extends ScrollView {
         if (!enabled) {
             reminderStatus.setText("Prayer calls are OFF");
             reminderStatus.setTextColor(MUTED);
-            return;
+        } else if (exactAlarmAvailable()) {
+            reminderStatus.setText("Prayer calls are ON • wake-up alarms scheduled");
+            reminderStatus.setTextColor(GREEN);
+        } else {
+            reminderStatus.setText("Prayer calls are ON • allow exact alarms for reliable timing");
+            reminderStatus.setTextColor(ORANGE);
         }
-        reminderStatus.setText(exactAlarmAvailable() ? "Prayer calls are ON • precise alarms ready" : "Prayer calls are ON • allow precise alarms for exact timing");
-        reminderStatus.setTextColor(GREEN);
+
+        if (backgroundStatus != null) {
+            if (batteryBackgroundAllowed()) {
+                backgroundStatus.setText("Background battery access: ALLOWED. Reminders can wake the phone while the app is closed.");
+                backgroundStatus.setTextColor(GREEN);
+            } else {
+                backgroundStatus.setText("Battery optimization is ON. Some phones may delay or block reminders after Qibla Compass is closed.");
+                backgroundStatus.setTextColor(ORANGE);
+            }
+        }
     }
 
     private void toggleReminders() {
@@ -246,13 +290,36 @@ public class PrayerDashboardView extends ScrollView {
             return;
         }
         PrayerScheduler.enable(activity, currentLocation.getLatitude(), currentLocation.getLongitude());
-        PrayerAlarmReceiver.createChannel(activity, (NotificationManager) activity.getSystemService(Context.NOTIFICATION_SERVICE));
+        PrayerAlarmReceiver.createChannel(activity,
+                (NotificationManager) activity.getSystemService(Context.NOTIFICATION_SERVICE));
         updateReminderUi();
         requestNextCapability();
     }
 
+    private void scheduleBackgroundTest() {
+        if (Build.VERSION.SDK_INT >= 33
+                && activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            reminderStatus.setText("Allow notifications first, then run the background test again.");
+            reminderStatus.setTextColor(ORANGE);
+            requestNextCapability();
+            return;
+        }
+        if (!exactAlarmAvailable()) {
+            reminderStatus.setText("Allow Alarms & reminders first, then run the 1-minute test again.");
+            reminderStatus.setTextColor(ORANGE);
+            requestNextCapability();
+            return;
+        }
+        PrayerAlarmReceiver.createChannel(activity,
+                (NotificationManager) activity.getSystemService(Context.NOTIFICATION_SERVICE));
+        PrayerScheduler.scheduleTest(activity, 60000L);
+        reminderStatus.setText("Background test scheduled for 1 minute. Close the app or lock the screen now.");
+        reminderStatus.setTextColor(GREEN);
+    }
+
     private void requestNextCapability() {
-        if (Build.VERSION.SDK_INT >= 33 && activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT >= 33
+                && activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             activity.requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFICATIONS);
             return;
         }
@@ -260,7 +327,8 @@ public class PrayerDashboardView extends ScrollView {
             AlarmManager alarm = (AlarmManager) activity.getSystemService(Context.ALARM_SERVICE);
             if (alarm != null && !alarm.canScheduleExactAlarms()) {
                 try {
-                    Intent i = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + activity.getPackageName()));
+                    Intent i = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                            Uri.parse("package:" + activity.getPackageName()));
                     activity.startActivity(i);
                     return;
                 } catch (Throwable ignored) { }
@@ -270,15 +338,59 @@ public class PrayerDashboardView extends ScrollView {
             NotificationManager nm = (NotificationManager) activity.getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm != null && !nm.canUseFullScreenIntent()) {
                 try {
-                    Intent i = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:" + activity.getPackageName()));
+                    Intent i = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                            Uri.parse("package:" + activity.getPackageName()));
                     activity.startActivity(i);
                     return;
                 } catch (Throwable ignored) { }
             }
         }
-        reminderStatus.setText(PrayerScheduler.isEnabled(activity) ? "Prayer calls are ON • permissions ready" : "Alarm permissions are ready");
+        if (!batteryBackgroundAllowed()) {
+            requestBackgroundAccess();
+            return;
+        }
+        reminderStatus.setText(PrayerScheduler.isEnabled(activity)
+                ? "Prayer calls are ON • permissions and background access ready"
+                : "Reminder permissions are ready");
         reminderStatus.setTextColor(GREEN);
         if (PrayerScheduler.isEnabled(activity)) PrayerScheduler.scheduleFromSaved(activity);
+        updateReminderUi();
+    }
+
+    private void requestBackgroundAccess() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            updateReminderUi();
+            return;
+        }
+        if (batteryBackgroundAllowed()) {
+            openAppSettings();
+            return;
+        }
+        try {
+            Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:" + activity.getPackageName()));
+            activity.startActivity(i);
+            return;
+        } catch (Throwable ignored) { }
+        try {
+            activity.startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+        } catch (Throwable ignored) {
+            openAppSettings();
+        }
+    }
+
+    private void openAppSettings() {
+        try {
+            Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + activity.getPackageName()));
+            activity.startActivity(i);
+        } catch (Throwable ignored) { }
+    }
+
+    private boolean batteryBackgroundAllowed() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
+        PowerManager pm = (PowerManager) activity.getSystemService(Context.POWER_SERVICE);
+        return pm != null && pm.isIgnoringBatteryOptimizations(activity.getPackageName());
     }
 
     private boolean exactAlarmAvailable() {
