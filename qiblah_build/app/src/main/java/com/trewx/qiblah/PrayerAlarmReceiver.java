@@ -13,15 +13,38 @@ import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.PowerManager;
 
 public class PrayerAlarmReceiver extends BroadcastReceiver {
-    public static final String CHANNEL_ID = "prayer_call_reminders";
+    public static final String CHANNEL_ID = "prayer_call_reminders_v2";
 
     @Override public void onReceive(Context context, Intent intent) {
-        String prayer = intent != null ? intent.getStringExtra("prayer") : null;
-        if (prayer == null || prayer.trim().isEmpty()) prayer = "Prayer";
-        showPrayerCall(context, prayer);
-        PrayerScheduler.scheduleFromSaved(context);
+        final String prayerValue = intent != null ? intent.getStringExtra("prayer") : null;
+        final String prayer = (prayerValue == null || prayerValue.trim().isEmpty()) ? "Prayer" : prayerValue;
+        final Context app = context.getApplicationContext();
+        final PendingResult pendingResult = goAsync();
+
+        new Thread(() -> {
+            PowerManager.WakeLock wakeLock = null;
+            try {
+                PowerManager pm = (PowerManager) app.getSystemService(Context.POWER_SERVICE);
+                if (pm != null) {
+                    wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
+                            "QiblaCompass:PrayerReminder");
+                    wakeLock.setReferenceCounted(false);
+                    wakeLock.acquire(15000L);
+                }
+                showPrayerCall(app, prayer);
+                // Refresh the rolling prayer schedule without needing the app to be opened.
+                PrayerScheduler.scheduleFromSaved(app);
+            } catch (Throwable ignored) {
+            } finally {
+                try {
+                    if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+                } catch (Throwable ignored) { }
+                pendingResult.finish();
+            }
+        }, "Qibla-PrayerAlarm").start();
     }
 
     public static void showPrayerCall(Context context, String prayer) {
@@ -79,12 +102,13 @@ public class PrayerAlarmReceiver extends BroadcastReceiver {
                 CHANNEL_ID,
                 "Prayer call reminders",
                 NotificationManager.IMPORTANCE_HIGH);
-        channel.setDescription("Full-screen call-style reminders for the five daily prayers");
+        channel.setDescription("Prayer reminders that ring and appear even when Qibla Compass is closed");
         channel.enableLights(true);
         channel.setLightColor(Color.rgb(255, 116, 23));
         channel.enableVibration(true);
         channel.setVibrationPattern(new long[]{0, 500, 350, 500, 350, 900});
         channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        channel.setBypassDnd(false);
         Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
         AudioAttributes attrs = new AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
