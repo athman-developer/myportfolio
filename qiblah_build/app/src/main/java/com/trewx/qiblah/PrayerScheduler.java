@@ -1,5 +1,6 @@
 package com.trewx.qiblah;
 
+import android.app.ActivityOptions;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -7,6 +8,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.location.Location;
 import android.os.Build;
+import android.os.Bundle;
 
 import java.util.Calendar;
 import java.util.Map;
@@ -157,12 +159,31 @@ public final class PrayerScheduler {
         } catch (Throwable ignored) { }
     }
 
+    private static Bundle pendingIntentCreatorOptions() {
+        if (Build.VERSION.SDK_INT < 34) return null;
+        try {
+            ActivityOptions options = ActivityOptions.makeBasic();
+            options.setPendingIntentCreatorBackgroundActivityStartMode(
+                    ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
+            return options.toBundle();
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     private static PendingIntent prayerScreenIntent(Context context, int requestCode) {
-        Intent show = new Intent(context, MainActivity.class);
-        show.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        show.putExtra("open_prayers", true);
-        return PendingIntent.getActivity(context, requestCode, show,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        Intent show = new Intent(context, PrayerCallActivity.class);
+        show.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                | Intent.FLAG_ACTIVITY_SINGLE_TOP
+                | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+        show.putExtra("prayer", "Prayer");
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+        Bundle options = pendingIntentCreatorOptions();
+        if (options != null) {
+            return PendingIntent.getActivity(context, requestCode, show, flags, options);
+        }
+        return PendingIntent.getActivity(context, requestCode, show, flags);
     }
 
     public static void scheduleTest(Context context, long delayMillis) {
