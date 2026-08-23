@@ -10,8 +10,8 @@ android {
         applicationId = "com.trewx.qiblah"
         minSdk = 24
         targetSdk = 35
-        versionCode = 11
-        versionName = "4.6"
+        versionCode = 12
+        versionName = "4.7"
     }
 
     compileOptions {
