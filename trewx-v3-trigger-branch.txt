@@ -1,1 +1,1 @@
-Qibla Compass build trigger — waiting action confirmations v4.5.
+Qibla Compass build trigger — Android 15 lock-screen and AOD prayer call fix v4.6.
